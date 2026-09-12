@@ -1,8 +1,8 @@
-#include "Arduino.h"
 #include "Mode.h"
+#include "Utility.h"
 
 void StandbyMode::init() {
-  SerialUSB.println("Standby Mode Initialized");
+  USB_Printf("Standby Mode Initialized");
 }
 
 void StandbyMode::loop() {
@@ -10,5 +10,5 @@ void StandbyMode::loop() {
 }
 
 void StandbyMode::exit() {
-  SerialUSB.println("Exiting Standby Mode");
+  USB_Printf("Exiting Standby Mode");
 }

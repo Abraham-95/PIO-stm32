@@ -1,8 +1,8 @@
-#include "Arduino.h"
 #include "Mode.h"
+#include "Utility.h"
 
 void SpeedMode::init() {
-  SerialUSB.println("Speed Mode Initialized");
+  USB_Printf("Speed Mode Initialized");
 }
 
 void SpeedMode::loop() {
@@ -10,5 +10,5 @@ void SpeedMode::loop() {
 }
 
 void SpeedMode::exit() {
-  SerialUSB.println("Exiting Speed Mode");
+  USB_Printf("Exiting Speed Mode");
 }

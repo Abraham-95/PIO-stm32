@@ -1,8 +1,8 @@
-#include "Arduino.h"
 #include "Mode.h"
+#include "Utility.h"
 
 void ServoMode::init() {
-  SerialUSB.println("Servo Mode Initialized");
+  USB_Printf("Servo Mode Initialized");
 }
 
 void ServoMode::loop() {
@@ -10,5 +10,5 @@ void ServoMode::loop() {
 }
 
 void ServoMode::exit() {
-  SerialUSB.println("Exiting Servo Mode");
+  USB_Printf("Exiting Servo Mode");
 }

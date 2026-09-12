@@ -1,5 +1,6 @@
 #pragma once
 #include "stm32f4xx_hal.h"
+#include "Utility.h"
 #include <cstdint>
 
 #define HEADER1 0xAA

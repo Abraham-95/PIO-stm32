@@ -36,7 +36,7 @@ static void refreshLED(LedState &led) {
   }
 }
 
-void updateLEDs() {
+void updateLED() {
   refreshLED(ledBlue); refreshLED(ledGreen); refreshLED(ledOrange); refreshLED(ledRed);
 }
 

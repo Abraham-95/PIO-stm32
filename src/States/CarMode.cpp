@@ -1,8 +1,8 @@
-#include "Arduino.h"
 #include "Mode.h"
+#include "Utility.h"
 
 void CarMode::init() {
-  SerialUSB.println("Car Mode Initialized");
+  USB_Printf("Car Mode Initialized");
 }
 
 void CarMode::loop() {
@@ -10,5 +10,5 @@ void CarMode::loop() {
 }
 
 void CarMode::exit() {
-  SerialUSB.println("Exiting Car Mode");
+  USB_Printf("Exiting Car Mode");
 }
