@@ -1,5 +1,6 @@
 #pragma once
-#include <Arduino.h>
+#include "stm32f4xx_hal.h"
+#include <cstdint>
 
 #define HEADER1 0xAA
 #define HEADER2 0xBB
@@ -56,7 +57,7 @@ extern uint8_t receiveType;
 extern bool controllerConnected;
 extern ButtonEvent readButtonEvent();
 
-void setupCom();
+void setupCom(UART* uart);
 void updateLED();
 bool receiveComData();
 void initializeControllerPayload();

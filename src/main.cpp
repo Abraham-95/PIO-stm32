@@ -1,8 +1,10 @@
-#include <Arduino.h>
 #include "Com.h"
 #include "Config.h"
 #include "Mode.h"
 #include "Utility.h"
+
+extern UART_HandleTypeDef huart3;
+static UART comUart(&huart3);
 
 StandbyMode *standbyMode = new StandbyMode();
 ServoMode *servoMode = new ServoMode();
@@ -16,10 +18,9 @@ enum ControlMode {MANUAL, AUTO};
 ControlMode controlMode = MANUAL;
 
 void setup() {
-  unsigned long startTime = millis();
-  while (!SerialUSB && millis() - startTime < 1000) {}
-
-  setupCom();
+  DWT_Init();
+  comUart.begin();
+  setupCom(&comUart);
 
   currentMode = standbyMode;
   previousMode = nullptr;
@@ -52,7 +53,6 @@ void loop() {
       default: break;
     }
     static unsigned long lastMovementTime = 0;
-
     double joyLx = ds_control_data.axisX; double joyLy = ds_control_data.axisY;
     double joyRx = ds_control_data.axisRX; double joyRy = ds_control_data.axisRY;
 
@@ -73,4 +73,8 @@ void loop() {
   //Freq debug
   //static uint32_t t0 = micros(); uint32_t now = micros();
   //Serial.println(now - t0); t0 = now;
+}
+
+void uartByteReceived() {
+  comUart.onByteReceived(*comUart.getRxBufferPtr());
 }

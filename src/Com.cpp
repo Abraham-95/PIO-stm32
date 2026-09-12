@@ -1,49 +1,47 @@
 #include "Com.h"
+#include "Utility.h"
+#include "stm32f4xx_hal.h"
 
 DS_Control_Data_Mode ds_control_data;
 DS_Settings_Data_Package ds_settings_data;
 Robot_Settings_Data_Package robot_settings_data;
 Robot_Sensor_Data_Package robot_sensor_data;
 
+static UART* comUartPtr = nullptr;
 unsigned long ds_last_received_time = 0;
-
-byte receiveType = DS_CONTROL_DATA;
+uint8_t receiveType = DS_CONTROL_DATA;
 bool controllerConnected = false;
 
 struct LedState {
-  uint32_t pin;
+  GPIO_TypeDef* port;
+  uint16_t pin;
   uint32_t onSince;
   bool active;
 };
 
-static LedState ledBlue   = { LED_BLUE,   0, false }; // X
-static LedState ledGreen  = { LED_GREEN,  0, false }; // Square
-static LedState ledOrange = { LED_ORANGE, 0, false }; // Triangle
-static LedState ledRed    = { LED_RED,    0, false }; // Circle
+static LedState ledBlue   = { GPIOD, GPIO_PIN_15, 0, false };
+static LedState ledGreen  = { GPIOD, GPIO_PIN_12, 0, false };
+static LedState ledOrange = { GPIOD, GPIO_PIN_13, 0, false };
+static LedState ledRed    = { GPIOD, GPIO_PIN_14, 0, false };
 
 static void pulseLED(LedState &led) {
-  digitalWrite(led.pin, HIGH); led.onSince = millis(); led.active = true;
+  HAL_GPIO_WritePin(led.port, led.pin, GPIO_PIN_SET);
+  led.onSince = HAL_GetTick(); led.active = true;
 }
 
 static void refreshLED(LedState &led) {
-  if (led.active && millis() - led.onSince >= LED_PULSE_DURATION_MS) {
-    digitalWrite(led.pin, LOW); led.active = false;
+  if (led.active && HAL_GetTick() - led.onSince >= 1000) {
+    HAL_GPIO_WritePin(led.port, led.pin, GPIO_PIN_RESET);
+    led.active = false;
   }
 }
 
-void updateLED() {
+void updateLEDs() {
   refreshLED(ledBlue); refreshLED(ledGreen); refreshLED(ledOrange); refreshLED(ledRed);
 }
 
-void setupCom() {
-  SerialUSB.begin(115200);
-  Serial3.begin(115200);
-
-  pinMode(LED_GREEN, OUTPUT);  digitalWrite(LED_GREEN, LOW);
-  pinMode(LED_ORANGE, OUTPUT); digitalWrite(LED_ORANGE, LOW);
-  pinMode(LED_RED, OUTPUT);    digitalWrite(LED_RED, LOW);
-  pinMode(LED_BLUE, OUTPUT);   digitalWrite(LED_BLUE, LOW);
-
+void setupCom(UART* uart) {
+  comUartPtr = uart;
   initializeControllerPayload();
 }
 
@@ -69,58 +67,41 @@ bool receiveComData() {
   } state = WAIT_HEADER1;
 
   static uint8_t type, length, data[16], index, checksum;
-  static DS_Control_Data_Mode lastData;
 
-  while (Serial3.available()) {
-    uint8_t byteIn = Serial3.read();
+  while (comUartPtr->available()) {
+    uint8_t byteIn = comUartPtr->read();
     switch (state) {
-      case WAIT_HEADER1: {
-        checksum = 0;
-        if (byteIn == HEADER1) {state = WAIT_HEADER2;} break;}
-      case WAIT_HEADER2: {
-        if (byteIn == HEADER2) {state = WAIT_TYPE;} else {state = WAIT_HEADER1;} break;}
-      case WAIT_TYPE: {
-        type = byteIn; checksum = byteIn; state = WAIT_LENGTH; break;}
-      case WAIT_LENGTH: {
+      case WAIT_HEADER1:
+        checksum = 0; if (byteIn == HEADER1) state = WAIT_HEADER2; break;
+      case WAIT_HEADER2:
+        state = (byteIn == HEADER2) ? WAIT_TYPE : WAIT_HEADER1; break;
+      case WAIT_TYPE:
+        type = byteIn; checksum = byteIn; state = WAIT_LENGTH; break;
+      case WAIT_LENGTH:
         length = byteIn; checksum ^= byteIn;
         if (length > sizeof(data)) {state = WAIT_HEADER1; break;}
-        index = 0; state = WAIT_DATA;  break;}
-      case WAIT_DATA: {
+        index = 0; state = WAIT_DATA;  break;
+      case WAIT_DATA:
         data[index++] = byteIn; checksum ^= byteIn;
-        if (index >= length) {state = WAIT_CHECKSUM;} break;}
-      case WAIT_CHECKSUM: {
-        if (checksum == byteIn) {
-          if (type == TYPE_CONTROL && length == 7) {
-            ds_control_data.buttons   = data[0];
-            ds_control_data.misc      = data[1];
-            ds_control_data.dpad      = data[2];
-            ds_control_data.axisX     = (int8_t)data[3];
-            ds_control_data.axisY     = (int8_t)data[4];
-            ds_control_data.axisRX    = (int8_t)data[5];
-            ds_control_data.axisRY    = (int8_t)data[6];
-
-            ds_last_received_time = millis();
-          }
-          state = WAIT_HEADER1; break;
+        if (index >= length) {state = WAIT_CHECKSUM;} break;
+      case WAIT_CHECKSUM:
+        if (checksum == byteIn && type == TYPE_CONTROL && length == 7) {
+          ds_control_data.buttons   = data[0];
+          ds_control_data.misc      = data[1];
+          ds_control_data.dpad      = data[2];
+          ds_control_data.axisX     = (int8_t)data[3];
+          ds_control_data.axisY     = (int8_t)data[4];
+          ds_control_data.axisRX    = (int8_t)data[5];
+          ds_control_data.axisRY    = (int8_t)data[6];
+          ds_last_received_time = HAL_GetTick();
         }
-      }
+        state = WAIT_HEADER1; break;
     }
   }
-  bool changed =
-  (lastData.buttons != ds_control_data.buttons) ||
-  (lastData.misc    != ds_control_data.misc) ||
-  (lastData.dpad    != ds_control_data.dpad) ||
-  (lastData.axisX   != ds_control_data.axisX) ||
-  (lastData.axisY   != ds_control_data.axisY) ||
-  (lastData.axisRX  != ds_control_data.axisRX) ||
-  (lastData.axisRY  != ds_control_data.axisRY);
-
-  if (millis() - ds_last_received_time > INTERVAL_MS_SIGNAL_LOST) {
+  if (HAL_GetTick() - ds_last_received_time > INTERVAL_MS_SIGNAL_LOST) {
     ds_control_data.axisX = 0; ds_control_data.axisY = 0;
     ds_control_data.axisRX = 0; ds_control_data.axisRY = 0;
-    ds_control_data.buttons = 0;
-    ds_control_data.dpad = 0;
-    ds_control_data.misc = 0;
+    ds_control_data.buttons = 0; ds_control_data.dpad = 0; ds_control_data.misc = 0;
     return false;
   }
   return true;
@@ -144,17 +125,13 @@ ButtonEvent readButtonEvent() {
 
   switch (event) {
     case BUTTON_X:
-      SerialUSB.println("[BUTTON] X pressed -> LED BLUE");
-      pulseLED(ledBlue); break;
+      USB_Printf("X pressed -> LED BLUE"); pulseLED(ledBlue); break;
     case BUTTON_SQUARE:
-      SerialUSB.println("[BUTTON] Square pressed -> LED GREEN");
-      pulseLED(ledGreen); break;
+      USB_Printf("Square pressed -> LED GREEN"); pulseLED(ledGreen); break;
     case BUTTON_TRIANGLE:
-      SerialUSB.println("[BUTTON] Triangle pressed -> LED ORANGE");
-      pulseLED(ledOrange); break;
+      USB_Printf("Triangle pressed -> LED ORANGE"); pulseLED(ledOrange); break;
     case BUTTON_CIRCLE:
-      SerialUSB.println("[BUTTON] Circle pressed -> LED RED");
-      pulseLED(ledRed); break;
+      USB_Printf("Circle pressed -> LED RED"); pulseLED(ledRed); break;
     default: break;
   }
   return event;

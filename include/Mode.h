@@ -1,6 +1,5 @@
-
 #pragma once
-#include <Arduino.h>
+#include "stm32f4xx_hal.h"
 
 class Mode {
   public:
